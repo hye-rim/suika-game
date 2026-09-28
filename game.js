@@ -349,6 +349,7 @@ function drawFruit(c, t, x, y, r0, ang = 0) {
   c.save();
   c.translate(x, y);
   c.rotate(ang);
+  if (t === 1) { drawStrawberry(c, r0); c.restore(); return; }
 
   // 진한 테두리 (물리 반지름 r0 까지), 그 안쪽에 몸통
   const lw = Math.max(1.5, r0 * 0.08);
@@ -394,12 +395,6 @@ function drawFruit(c, t, x, y, r0, ang = 0) {
       c.beginPath(); c.moveTo(k * r * 0.3 - r, -r); c.lineTo(k * r * 0.3 + r, r); c.stroke();
       c.beginPath(); c.moveTo(k * r * 0.3 + r, -r); c.lineTo(k * r * 0.3 - r, r); c.stroke();
     }
-  } else if (t === 1) {                 // 딸기 씨
-    c.fillStyle = '#ffe98a';
-    for (let k = 0; k < 10; k++) {
-      const a = k * 2.4, d = r * (0.3 + (k % 3) * 0.2);
-      c.beginPath(); c.ellipse(Math.cos(a) * d, Math.sin(a) * d + r * 0.1, 1.4, 2.2, a, 0, Math.PI * 2); c.fill();
-    }
   } else if (t === 3 || t === 4) {      // 한라봉·감 껍질 점
     c.fillStyle = 'rgba(255,255,255,.18)';
     for (let k = 0; k < 14; k++) {
@@ -436,18 +431,88 @@ function drawFruit(c, t, x, y, r0, ang = 0) {
   c.fillStyle = 'rgba(255,255,255,.6)';
   c.beginPath(); c.ellipse(-r * 0.38, -r * 0.42, r * 0.2, r * 0.12, -0.7, 0, Math.PI * 2); c.fill();
 
-  // 얼굴
-  if (r >= 12) {
-    const ey = r * 0.02, ex = r * 0.28, er = Math.max(1.6, r * 0.075);
-    c.fillStyle = INK;
-    c.beginPath(); c.arc(-ex, ey, er, 0, Math.PI * 2); c.arc(ex, ey, er, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = INK;
-    c.lineWidth = Math.max(1.2, r * 0.05);
-    c.beginPath(); c.arc(0, ey + r * 0.12, r * 0.14, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
-    c.fillStyle = 'rgba(255,120,140,.35)';
-    c.beginPath(); c.arc(-ex * 1.45, ey + r * 0.18, r * 0.1, 0, Math.PI * 2); c.arc(ex * 1.45, ey + r * 0.18, r * 0.1, 0, Math.PI * 2); c.fill();
-  }
+  drawFace(c, r, r * 0.02);
   c.restore();
+}
+
+// 눈 두 개, 웃는 입, 볼터치 (작으면 생략)
+function drawFace(c, r, ey) {
+  if (r < 12) return;
+  const ex = r * 0.28, er = Math.max(1.6, r * 0.075);
+  c.fillStyle = INK;
+  c.beginPath(); c.arc(-ex, ey, er, 0, Math.PI * 2); c.arc(ex, ey, er, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = INK;
+  c.lineWidth = Math.max(1.2, r * 0.05);
+  c.beginPath(); c.arc(0, ey + r * 0.12, r * 0.14, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+  c.fillStyle = 'rgba(255,120,140,.35)';
+  c.beginPath(); c.arc(-ex * 1.45, ey + r * 0.18, r * 0.1, 0, Math.PI * 2); c.arc(ex * 1.45, ey + r * 0.18, r * 0.1, 0, Math.PI * 2); c.fill();
+}
+
+// 딸기: 동그라미 대신 위가 넓고 아래가 뾰족한 딸기 모양 + 초록 꼭지 + 씨.
+// 물리 원(반지름 r0) 안에 들어가게 그려서 부딪히는 크기는 그대로다.
+function drawStrawberry(c, r0) {
+  const shape = (k) => {
+    const r = r0 * k;
+    c.beginPath();
+    c.moveTo(0, r * 0.98);                                              // 아래 뾰족한 끝
+    c.bezierCurveTo(-r * 0.5, r * 0.8, -r * 0.98, r * 0.2, -r * 0.92, -r * 0.3);
+    c.bezierCurveTo(-r * 0.86, -r * 0.82, -r * 0.35, -r * 0.9, 0, -r * 0.78);   // 넓고 둥근 윗부분
+    c.bezierCurveTo(r * 0.35, -r * 0.9, r * 0.86, -r * 0.82, r * 0.92, -r * 0.3);
+    c.bezierCurveTo(r * 0.98, r * 0.2, r * 0.5, r * 0.8, 0, r * 0.98);
+    c.closePath();
+  };
+  const lw = Math.max(1.5, r0 * 0.08);
+  // 몸통: 테두리 → 빨강 그라디언트
+  shape(1); c.fillStyle = INK; c.fill();
+  shape(1 - lw / r0 * 1.15);
+  const g = c.createLinearGradient(-r0 * 0.5, -r0 * 0.8, r0 * 0.4, r0);
+  g.addColorStop(0, '#ff8a9a'); g.addColorStop(0.45, '#ff3b57'); g.addColorStop(1, '#c4102f');
+  c.fillStyle = g; c.fill();
+  // 씨: 엇갈린 줄로 촘촘히, 몸통 안쪽에만
+  c.save();
+  c.clip();
+  const sd = Math.max(1, r0 * 0.07);
+  for (let row = 0; row < 5; row++) {
+    const y = -r0 * 0.38 + row * r0 * 0.28;
+    const n = 4 - Math.floor(row / 2);
+    for (let i = 0; i < n; i++) {
+      const x = (i - (n - 1) / 2) * r0 * 0.36 + (row % 2 ? r0 * 0.1 : 0);
+      c.fillStyle = 'rgba(120,10,30,.35)';
+      c.beginPath(); c.ellipse(x + sd * 0.25, y + sd * 0.3, sd * 0.7, sd, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#ffe27a';
+      c.beginPath(); c.ellipse(x, y, sd * 0.55, sd * 0.85, 0, 0, Math.PI * 2); c.fill();
+    }
+  }
+  // 윗부분 광택
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  c.beginPath(); c.ellipse(-r0 * 0.42, -r0 * 0.4, r0 * 0.18, r0 * 0.1, -0.6, 0, Math.PI * 2); c.fill();
+  c.restore();
+  // 초록 꼭지: 어깨 위로 늘어진 잎 5장 + 꼭지 줄기
+  const ly = -r0 * 0.7;
+  c.lineWidth = Math.max(1.2, r0 * 0.07);
+  c.strokeStyle = INK;
+  c.lineJoin = 'round';
+  const leaves = [-0.95, -0.5, 0, 0.5, 0.95];                           // 잎 방향 (0 = 바로 아래)
+  for (const k of leaves) {
+    const a = Math.PI / 2 + k * 1.25;                                   // 아래쪽 반원으로 펼침
+    const len = r0 * (Math.abs(k) > 0.7 ? 0.5 : 0.42);
+    const tipX = Math.cos(a) * len, tipY = ly + Math.sin(a) * len * 0.62;
+    const nx = -Math.sin(a) * r0 * 0.13, ny = Math.cos(a) * r0 * 0.13;   // 잎 폭 방향
+    c.beginPath();
+    c.moveTo(0, ly);
+    c.quadraticCurveTo(tipX * 0.5 + nx, (ly + tipY) / 2 + ny, tipX, tipY);
+    c.quadraticCurveTo(tipX * 0.5 - nx, (ly + tipY) / 2 - ny, 0, ly);
+    c.closePath();
+    c.fillStyle = '#5fd36e'; c.fill(); c.stroke();
+  }
+  c.fillStyle = '#2f9e44';
+  c.beginPath(); c.ellipse(0, ly, r0 * 0.15, r0 * 0.1, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+  c.beginPath(); c.moveTo(0, ly - r0 * 0.06); c.quadraticCurveTo(r0 * 0.02, ly - r0 * 0.3, r0 * 0.14, ly - r0 * 0.38);
+  c.lineWidth = Math.max(1.5, r0 * 0.1); c.lineCap = 'round'; c.strokeStyle = INK; c.stroke();
+  c.lineWidth = Math.max(0.8, r0 * 0.05); c.strokeStyle = '#5fd36e'; c.stroke();
+  c.lineCap = 'butt';
+  // 얼굴은 몸통 가운데보다 살짝 아래
+  drawFace(c, r0 * 0.85, r0 * 0.12);
 }
 
 function roundRect(x, y, w, h, r) {
