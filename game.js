@@ -231,12 +231,14 @@ let aimX = W / 2;
 let cooldown = 0;             // 떨어뜨린 뒤 다음 과일이 나올 때까지
 let danger = 0;               // 선을 넘은 채로 지난 시간
 let biggest = 0;              // 이번 판에서 만든 가장 큰 과일
+let dropped = 0;              // 이번 판에서 떨어뜨린 과일 수
 let particles = [];
 let texts = [];
 let keys = {};
 
 const randomFruit = () => Math.floor(Math.random() * DROPPABLE);
 const DANGER_LIMIT = 2.5;
+const GUIDE_DROPS = 4;        // 처음 몇 개만 조준선을 보여주고, 그다음부터는 감으로
 
 function startGame() {
   world = { bodies: [] };
@@ -247,6 +249,7 @@ function startGame() {
   cooldown = 0;
   danger = 0;
   biggest = 0;
+  dropped = 0;
   particles = [];
   texts = [];
   state = 'play';
@@ -264,6 +267,7 @@ function drop() {
   clampAim();
   // 좌우로 약간 흔들어 똑같은 자리에 탑처럼 쌓이지 않게 한다
   world.bodies.push(makeFruit(current, aimX + (Math.random() - 0.5) * 0.02, DROP_Y));
+  dropped++;
   sfx.drop();
   current = next;
   next = randomFruit();
@@ -479,11 +483,13 @@ function draw() {
   // 조준선과 들고 있는 과일
   if (state === 'play' || state === 'paused') {
     const r = FRUITS[current].r;
-    ctx.strokeStyle = 'rgba(154,90,28,.3)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 6]);
-    ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + r); ctx.lineTo(aimX, FLOOR); ctx.stroke();
-    ctx.setLineDash([]);
+    if (dropped < GUIDE_DROPS) {
+      ctx.strokeStyle = 'rgba(154,90,28,.3)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + r); ctx.lineTo(aimX, FLOOR); ctx.stroke();
+      ctx.setLineDash([]);
+    }
     if (cooldown <= 0) drawFruit(ctx, current, aimX, DROP_Y, r);
     else { ctx.globalAlpha = 0.35; drawFruit(ctx, current, aimX, DROP_Y, r); ctx.globalAlpha = 1; }
   }
