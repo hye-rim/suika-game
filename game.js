@@ -30,7 +30,7 @@ const DROPPABLE = 5;                 // 체리~감 중에서 무작위로 나온
 // Verlet 적분 + 겹침 풀기. 한 프레임(1/60초)을 잘게 나눠 여러 번 계산해야 쌓인 과일이 안정적이다.
 const STEP = 1 / 60;
 const SUBSTEPS = 10;
-const GRAVITY = 2000;                // px/s²
+const GRAVITY = 2400;                // px/s²
 const MAX_V = 4;                     // 서브스텝당 최대 이동 (합쳐질 때 튕겨나가는 힘 제한)
 const DAMP = 0.999;
 const FRICTION = 0.08;               // 과일끼리 미끄러짐 줄이기
