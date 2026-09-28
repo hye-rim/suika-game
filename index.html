@@ -4,18 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>수박 게임</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
 <style>
   /* 아이폰 사파리는 -webkit- 접두사를 붙여야 알아듣는다: 버튼을 누르다 글자가 파랗게 선택(블록)되거나
      길게 눌러 복사 메뉴가 뜨지 않게. 입력칸은 그대로 선택·붙여넣기 되게 둔다 */
   *, *::before, *::after { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
   input, textarea, [contenteditable] { -webkit-user-select:text; user-select:text; -webkit-touch-callout:default; }
 
-  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  /* 작은 오락실 공통 스티커 스타일: 진한 남보라 테두리 + 아래로 떨어진 그림자 + 둥근 글꼴 */
+  :root { --ink:#2b1d52; --yellow:#ffd23f; --pink:#ff5fa2; --muted:#6b5c95; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body {
     width:100%; height:100%; overflow:hidden;
-    background:radial-gradient(circle at 50% 15%, #ffe6b8 0%, #ffc978 55%, #f2a04a 100%);
-    font-family:-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    color:#5a3210;
+    background:
+      repeating-linear-gradient(-30deg, rgba(255,255,255,.07) 0 26px, transparent 26px 56px),
+      linear-gradient(180deg, #4f8cff 0%, #6b5cff 55%, #8a4fe0 100%);
+    font-family:'Jua', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    color:var(--ink);
     touch-action:none;
   }
   #stage {
@@ -23,47 +30,59 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     padding:8px;
   }
-  #hud {
-    display:flex; justify-content:space-between; align-items:flex-end; gap:8px;
-    padding:0 4px 6px;
-    font-variant-numeric:tabular-nums;
+  /* 위 점수판: 알약들 */
+  #hud { display:flex; align-items:center; gap:6px; padding:0 2px 8px; font-variant-numeric:tabular-nums; }
+  #hud .item {
+    display:flex; align-items:center; gap:5px; white-space:nowrap;
+    background:#fff; border:3px solid var(--ink); border-radius:999px; box-shadow:0 4px 0 var(--ink);
+    padding:2px 11px; height:38px;
   }
-  #hud .item { display:flex; flex-direction:column; line-height:1.1; }
-  #hud .label { font-size:10px; letter-spacing:.12em; color:#9a5a1c; font-weight:800; }
-  #hud .value { font-size:22px; font-weight:900; }
-  #hud .next { display:flex; align-items:center; gap:6px; }
-  #nextCanvas { width:36px; height:36px; }
-  #hud .icons { display:flex; gap:6px; }
+  #hud .item:first-child { background:var(--yellow); flex:1; min-width:0; }
+  #hud .label { font-size:11px; color:var(--muted); }
+  #hud .value { font-size:21px; }
+  #hud .next { padding:2px 4px 2px 10px; }
+  #nextCanvas { width:30px; height:30px; }
+  #hud .icons { display:flex; gap:6px; margin-left:auto; }
   #hud button {
-    background:rgba(255,255,255,.55); border:1px solid rgba(154,90,28,.35); color:#5a3210;
-    width:32px; height:32px; border-radius:8px; font-size:14px; cursor:pointer;
+    background:#fff; border:3px solid var(--ink); color:var(--ink);
+    width:36px; height:36px; border-radius:12px; font-size:15px; cursor:pointer;
+    box-shadow:0 4px 0 var(--ink);
   }
+  #hud button:active { transform:translateY(3px); box-shadow:0 1px 0 var(--ink); }
+  @media (max-width:360px) { #hud .label { display:none; } }
   #wrap { position:relative; }
   #game { display:block; touch-action:none; cursor:pointer; }
   #overlay {
     position:absolute; inset:0;
-    display:flex; flex-direction:column; align-items:center; justify-content:safe center; gap:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:safe center; gap:12px;
     text-align:center; padding:20px;
-    background:rgba(255,244,222,.86);
-    border-radius:18px;
+    background:rgba(43,29,82,.55);
+    border-radius:26px;
     backdrop-filter:blur(3px);
     overflow-y:auto;
+    touch-action:pan-y;
   }
   #overlay.hidden { display:none; }
-  #overlay h1 { font-size:40px; font-weight:900; color:#2e9e44;
-    text-shadow:0 3px 0 #0f5a22, 0 6px 14px rgba(0,0,0,.18); }
-  #overlay h2 { font-size:28px; font-weight:900; }
-  #overlay p { font-size:14px; line-height:1.6; color:#7a4a1c; }
-  #overlay .big { font-size:34px; font-weight:900; color:#e2542a; font-variant-numeric:tabular-nums; }
-  #overlay .help { font-size:12px; color:#9a6a3c; line-height:1.7; }
-  #overlay button {
-    margin-top:6px;
-    background:linear-gradient(180deg,#5fd36e,#2e9e44);
-    color:#fff; font-weight:900; font-size:17px;
-    border:none; border-radius:999px; padding:12px 34px;
-    box-shadow:0 4px 0 #1b6b2c; cursor:pointer;
+  #overlay h1, .inked {
+    color:#fff; font-weight:400; paint-order:stroke fill; -webkit-text-stroke:6px var(--ink); text-shadow:0 5px 0 var(--ink);
   }
-  #overlay button:active { transform:translateY(3px); box-shadow:0 1px 0 #1b6b2c; }
+  #overlay h1 { font-size:clamp(44px, 13vw, 56px); line-height:1.05; color:#7ee39a; }
+  #overlay h2 { font-size:32px; font-weight:400; }
+  #overlay p { font-size:15px; line-height:1.6; color:#fff; }
+  #overlay p b { color:var(--yellow); font-weight:400; }
+  #overlay .big { font-size:44px; color:var(--yellow); font-variant-numeric:tabular-nums; }
+  #overlay .help {
+    font-size:14px; color:var(--ink); line-height:1.75;
+    background:#fff; border:3px solid var(--ink); border-radius:18px; box-shadow:0 5px 0 var(--ink);
+    padding:10px 16px;
+  }
+  #overlay button {
+    margin-top:4px;
+    background:var(--yellow); color:var(--ink); font-size:22px; font-family:inherit;
+    border:3px solid var(--ink); border-radius:999px; padding:10px 38px;
+    box-shadow:0 6px 0 var(--ink); cursor:pointer;
+  }
+  #overlay button:active { transform:translateY(4px); box-shadow:0 2px 0 var(--ink); }
 </style>
 </head>
 <body>
@@ -82,13 +101,13 @@
       <canvas id="game"></canvas>
       <div id="overlay">
         <h1>수박 게임</h1>
-        <p>같은 과일끼리 부딪히면 <b>한 단계 큰 과일</b>로 합쳐져요.<br>과일이 빨간 선을 넘치지 않게 쌓아 <b>🍉 수박</b>을 만들어 보세요!</p>
+        <p>같은 과일끼리 부딪히면 <b>한 단계 큰 과일</b>로 합쳐져요.<br>과일이 분홍 선을 넘치지 않게 쌓아 <b>🍉 수박</b>을 만들어 보세요!</p>
+        <button id="startBtn">시작하기</button>
         <div class="help">
           🖱️ 마우스로 위치 · 클릭으로 떨어뜨리기<br>
           📱 드래그로 위치 · 손을 떼면 떨어뜨리기<br>
           ⌨️ ← → 이동 · Space 떨어뜨리기
         </div>
-        <button id="startBtn">시작하기</button>
       </div>
     </div>
   </div>

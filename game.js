@@ -335,21 +335,28 @@ function gameOver() {
   const f = FRUITS[biggest];
   setTimeout(() => {
     showOverlay(`
-      <h2>게임 오버</h2>
-      <div class="big">${score.toLocaleString()}</div>
+      <h2 class="inked">게임 오버</h2>
+      <div class="big inked">${score.toLocaleString()}</div>
       <p>${score >= best && score > 0 ? '🏆 최고 기록!' : `최고 기록 ${best.toLocaleString()}`}<br>가장 큰 과일: <b>${f.name}</b></p>
       <button id="startBtn">다시 하기</button>`);
   }, 700);
 }
 
 // ---------- Draw ----------
-function drawFruit(c, t, x, y, r, ang = 0) {
+const INK = '#2b1d52';
+function drawFruit(c, t, x, y, r0, ang = 0) {
   const f = FRUITS[t];
   c.save();
   c.translate(x, y);
   c.rotate(ang);
 
-  // 몸통
+  // 진한 테두리 (물리 반지름 r0 까지), 그 안쪽에 몸통
+  const lw = Math.max(1.5, r0 * 0.08);
+  c.fillStyle = INK;
+  c.beginPath();
+  c.arc(0, 0, r0, 0, Math.PI * 2);
+  c.fill();
+  const r = r0 - lw;
   const g = c.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r);
   g.addColorStop(0, f.light);
   g.addColorStop(0.55, f.color);
@@ -408,7 +415,7 @@ function drawFruit(c, t, x, y, r, ang = 0) {
 
   // 꼭지·잎
   c.fillStyle = '#3f8a2a';
-  c.strokeStyle = '#6b3e12';
+  c.strokeStyle = INK;
   c.lineWidth = Math.max(1.5, r * 0.08);
   if (t === 0) {
     c.beginPath(); c.moveTo(0, -r * 0.9); c.quadraticCurveTo(r * 0.3, -r * 1.6, r * 0.8, -r * 1.7); c.stroke();
@@ -426,15 +433,15 @@ function drawFruit(c, t, x, y, r, ang = 0) {
   }
 
   // 반짝임
-  c.fillStyle = 'rgba(255,255,255,.45)';
+  c.fillStyle = 'rgba(255,255,255,.6)';
   c.beginPath(); c.ellipse(-r * 0.38, -r * 0.42, r * 0.2, r * 0.12, -0.7, 0, Math.PI * 2); c.fill();
 
   // 얼굴
   if (r >= 12) {
     const ey = r * 0.02, ex = r * 0.28, er = Math.max(1.6, r * 0.075);
-    c.fillStyle = '#2a1405';
+    c.fillStyle = INK;
     c.beginPath(); c.arc(-ex, ey, er, 0, Math.PI * 2); c.arc(ex, ey, er, 0, Math.PI * 2); c.fill();
-    c.strokeStyle = '#2a1405';
+    c.strokeStyle = INK;
     c.lineWidth = Math.max(1.2, r * 0.05);
     c.beginPath(); c.arc(0, ey + r * 0.12, r * 0.14, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
     c.fillStyle = 'rgba(255,120,140,.35)';
@@ -453,93 +460,103 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+function label(text, x, y, size, fill = '#fff') {
+  ctx.font = `${size}px "Jua", "Apple SD Gothic Neo", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(3, size * 0.22); ctx.strokeStyle = INK; ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill; ctx.fillText(text, x, y);
+}
+
 function draw() {
   ctx.clearRect(0, 0, W, H);
 
-  // 통
-  ctx.fillStyle = 'rgba(255,248,232,.92)';
-  roundRect(LEFT - 12, BOX_TOP, RIGHT - LEFT + 24, FLOOR - BOX_TOP + 12, 16);
-  ctx.fill();
-  ctx.fillStyle = '#ffe7b0';
-  ctx.fillRect(LEFT, BOX_TOP + 4, RIGHT - LEFT, FLOOR - BOX_TOP - 4);
-  ctx.strokeStyle = '#c47a2c';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(LEFT - 2, BOX_TOP);
-  ctx.lineTo(LEFT - 2, FLOOR + 2);
-  ctx.lineTo(RIGHT + 2, FLOOR + 2);
-  ctx.lineTo(RIGHT + 2, BOX_TOP);
-  ctx.stroke();
+  // 유리병: 아래로 떨어진 진한 그림자 + 테두리, 안쪽은 밝은 크림색에 물방울 무늬
+  const jx = LEFT - 10, jy = BOX_TOP - 6, jw = RIGHT - LEFT + 20, jh = FLOOR - BOX_TOP + 16;
+  ctx.fillStyle = INK; roundRect(jx, jy + 9, jw, jh, 26); ctx.fill();
+  const g = ctx.createLinearGradient(0, jy, 0, jy + jh);
+  g.addColorStop(0, '#fffaf0'); g.addColorStop(1, '#ffe4b8');
+  ctx.fillStyle = g; roundRect(jx, jy, jw, jh, 26); ctx.fill();
+  ctx.save();
+  roundRect(jx, jy, jw, jh, 26); ctx.clip();
+  ctx.fillStyle = 'rgba(255,164,43,.1)';
+  for (let y = jy; y < jy + jh; y += 26)
+    for (let x = jx + ((y / 26) % 2 ? 13 : 0); x < jx + jw; x += 26) { ctx.beginPath(); ctx.arc(x + 6, y + 6, 3.5, 0, Math.PI * 2); ctx.fill(); }
+  // 왼쪽 유리 반사
+  ctx.fillStyle = 'rgba(255,255,255,.75)';
+  roundRect(jx + 8, jy + 30, 7, jh - 70, 4); ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 4; ctx.strokeStyle = INK; roundRect(jx, jy, jw, jh, 26); ctx.stroke();
+  // 병 입구 테
+  ctx.fillStyle = '#ffd23f'; roundRect(jx - 6, jy - 10, jw + 12, 18, 9); ctx.fill();
+  ctx.lineWidth = 3; ctx.stroke();
 
   // 위험선: 넘칠 기미가 보이면 깜빡인다
   const near = world.bodies.some((b) => b.age > 1.2 && b.y - b.r < LINE_Y + 40);
-  const blink = danger > 0 ? (Math.sin(performance.now() / 80) > 0 ? 1 : 0.35) : near ? 0.8 : 0.35;
-  ctx.strokeStyle = `rgba(230,50,40,${blink})`;
-  ctx.lineWidth = danger > 0 ? 3 : 2;
-  ctx.setLineDash([10, 8]);
-  ctx.beginPath(); ctx.moveTo(LEFT, LINE_Y); ctx.lineTo(RIGHT, LINE_Y); ctx.stroke();
-  ctx.setLineDash([]);
+  const blink = danger > 0 ? (Math.sin(performance.now() / 80) > 0 ? 1 : 0.4) : near ? 0.9 : 0.5;
+  ctx.save();
+  ctx.globalAlpha = blink;
+  ctx.setLineDash([12, 9]);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = INK; ctx.lineWidth = danger > 0 ? 7 : 5;
+  ctx.beginPath(); ctx.moveTo(LEFT + 4, LINE_Y); ctx.lineTo(RIGHT - 4, LINE_Y); ctx.stroke();
+  ctx.strokeStyle = '#ff5fa2'; ctx.lineWidth = danger > 0 ? 4 : 2.5;
+  ctx.beginPath(); ctx.moveTo(LEFT + 4, LINE_Y); ctx.lineTo(RIGHT - 4, LINE_Y); ctx.stroke();
+  ctx.restore();
 
   // 조준선과 들고 있는 과일
   if (state === 'play' || state === 'paused') {
     const r = FRUITS[current].r;
     if (dropped < GUIDE_DROPS) {
-      ctx.strokeStyle = 'rgba(154,90,28,.3)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 6]);
-      ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + r); ctx.lineTo(aimX, FLOOR); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.save();
+      ctx.setLineDash([2, 9]);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(43,29,82,.45)';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(aimX, DROP_Y + r + 4); ctx.lineTo(aimX, FLOOR); ctx.stroke();
+      ctx.restore();
     }
     if (cooldown <= 0) drawFruit(ctx, current, aimX, DROP_Y, r);
-    else { ctx.globalAlpha = 0.35; drawFruit(ctx, current, aimX, DROP_Y, r); ctx.globalAlpha = 1; }
+    else { ctx.globalAlpha = 0.4; drawFruit(ctx, current, aimX, DROP_Y, r); ctx.globalAlpha = 1; }
   }
 
   // 과일들
   for (const b of world.bodies) drawFruit(ctx, b.t, b.x, b.y, b.r, b.ang);
 
-  // 파티클
+  // 파티클: 테두리 두른 방울
   for (const p of particles) {
     ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = INK;
+    ctx.beginPath(); ctx.arc(p.x, p.y + 1, p.r + 1.2, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = p.color;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
 
   // 점수 글자
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
   for (const t of texts) {
     if (t.t < 0) continue;
     ctx.globalAlpha = Math.min(1, (1 - t.t) * 3);
-    ctx.font = `900 ${t.big ? 26 : 16}px sans-serif`;
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = '#fff';
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillStyle = t.big ? '#e2542a' : '#7a4a1c';
-    ctx.fillText(t.text, t.x, t.y);
+    label(t.text, t.x, t.y, t.big ? 30 : 19, t.big ? '#ffd23f' : '#fff');
   }
   ctx.globalAlpha = 1;
 
-  // 진화 순서
+  // 진화 순서: 병 아래 흰 알약
+  const sx0 = LEFT - 4, sw = RIGHT - LEFT + 8, sy = FLOOR + 40;
+  ctx.fillStyle = INK; roundRect(sx0, sy - 17, sw, 36, 18); ctx.fill();
+  ctx.fillStyle = '#ffffff'; roundRect(sx0, sy - 21, sw, 36, 18); ctx.fill();
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; roundRect(sx0, sy - 21, sw, 36, 18); ctx.stroke();
   const slot = (RIGHT - LEFT) / FRUITS.length;
-  const sy = FLOOR + 38;
   for (let i = 0; i < FRUITS.length; i++) {
     const cx = LEFT + slot * (i + 0.5);
-    const rr = 6 + i * 0.9;
-    ctx.globalAlpha = i <= biggest || state === 'title' ? 1 : 0.35;
-    drawFruit(ctx, i, cx, sy, rr);
+    const rr = 6 + i * 0.75;
+    ctx.globalAlpha = i <= biggest || state === 'title' ? 1 : 0.3;
+    drawFruit(ctx, i, cx, sy - 3, rr);
   }
   ctx.globalAlpha = 1;
 
   // 넘치기 직전 카운트다운
   if (state === 'play' && danger > 0.5) {
-    const n = Math.ceil(DANGER_LIMIT - danger);
-    ctx.font = '900 44px sans-serif';
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = '#fff';
-    ctx.strokeText(n, W / 2, LINE_Y + 50);
-    ctx.fillStyle = '#e63228';
-    ctx.fillText(n, W / 2, LINE_Y + 50);
+    label(`${Math.ceil(DANGER_LIMIT - danger)}`, W / 2, LINE_Y + 56, 52, '#ff5fa2');
   }
 }
 
@@ -596,7 +613,7 @@ function pause() {
   if (state !== 'play') return;
   state = 'paused';
   keys = {};
-  showOverlay(`<h2>일시정지</h2><p>점수 ${score.toLocaleString()}</p><button id="startBtn">계속하기</button>`);
+  showOverlay(`<h2 class="inked">일시정지</h2><p>점수 ${score.toLocaleString()}</p><button id="startBtn">계속하기</button>`);
 }
 function resume() {
   if (state !== 'paused') return;
