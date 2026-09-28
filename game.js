@@ -35,11 +35,27 @@ const MAX_V = 4;                     // 서브스텝당 최대 이동 (합쳐질
 const DAMP = 0.999;
 const FRICTION = 0.08;               // 과일끼리 미끄러짐 줄이기
 const FLOOR_FRICTION = 0.04;
+// 합쳐질 때 튕김 줄이기: 새 과일은 GROW_FRAMES 동안 천천히 커지고, 그동안 밀려난 거리는
+// 대부분(SOFT) 속도로 바뀌지 않게 한다. 이 '얌전함'은 새 과일에서 바깥쪽으로 CALM_DEPTH 겹까지 퍼진다.
+// 작은 과일이 큰 과일 사이에 끼어 두 다리 건너 밀려도 튀어나가지 않게 하기 위해서다.
+// 안쪽 겹으로는 되돌아가지 않아 시간이 지나면 반드시 풀린다 (서로 계속 옮기면 더미 전체가 물렁해진다).
+const GROW_FRAMES = 15;
+const CALM_TIME = 0.4;
+const CALM_DEPTH = 3;
+const SOFT = 0.95;
+const MERGE_KEEP_V = 0.3;
 
 let nextId = 1;
 function makeFruit(t, x, y) {
   const r = FRUITS[t].r;
-  return { id: nextId++, t, x, y, px: x, py: y, r, rTarget: r, m: r * r, ang: 0, age: 0, dead: false };
+  return { id: nextId++, t, x, y, px: x, py: y, r, rTarget: r, m: r * r, ang: 0, age: 0, calm: 0, calmDepth: 0, dead: false };
+}
+
+function spreadCalm(from, to) {
+  if (from.calm <= 0 || from.calmDepth >= CALM_DEPTH) return;
+  if (to.calm > 0 && to.calmDepth <= from.calmDepth + 1) return;
+  to.calm = from.calm;          // 남은 시간을 물려받으니 함께 끝난다
+  to.calmDepth = from.calmDepth + 1;
 }
 
 // 한 서브스텝. 합쳐진 결과(새 과일, 점수)는 events 에 담아 돌려준다.
@@ -82,6 +98,14 @@ function substep(world, h, events) {
         const ma = b.m / (a.m + b.m), mb = a.m / (a.m + b.m);
         a.x -= nx * overlap * ma; a.y -= ny * overlap * ma;
         b.x += nx * overlap * mb; b.y += ny * overlap * mb;
+        if (a.calm > 0 || b.calm > 0) {
+          // 자리만 비켜주고 튕겨나가지는 않게: 이전 위치도 같이 옮겨 속도로 남는 몫을 줄인다
+          const k = overlap * SOFT;
+          a.px -= nx * k * ma; a.py -= ny * k * ma;
+          b.px += nx * k * mb; b.py += ny * k * mb;
+          spreadCalm(a, b);
+          spreadCalm(b, a);
+        }
 
         // 접선 방향 상대 속도를 조금 줄여 굴러다니지 않고 자리를 잡게 한다
         const rvx = (b.x - b.px) - (a.x - a.px), rvy = (b.y - b.py) - (a.y - a.py);
@@ -92,12 +116,13 @@ function substep(world, h, events) {
       }
     }
     for (const b of bodies) {
-      // 벽·바닥에 닿으면 그 방향 속도를 없앤다 (튕기지 않는다)
-      if (b.x - b.r < LEFT) { b.x = LEFT + b.r; if (b.px < b.x) b.px = b.x; }
-      if (b.x + b.r > RIGHT) { b.x = RIGHT - b.r; if (b.px > b.x) b.px = b.x; }
+      // 벽·바닥을 파고들었으면 되돌리고 그 축의 속도를 0으로. 이전 위치(px/py)를 남겨두면
+      // 되돌린 거리가 그대로 반대 방향 속도가 되어, 위에서 눌린 과일이 바닥에서 튀어 오른다.
+      if (b.x - b.r < LEFT) { b.x = LEFT + b.r; b.px = b.x; }
+      if (b.x + b.r > RIGHT) { b.x = RIGHT - b.r; b.px = b.x; }
       if (b.y + b.r > FLOOR) {
         b.y = FLOOR - b.r;
-        if (b.py < b.y) b.py = b.y;
+        b.py = b.y;
         b.px += (b.x - b.px) * FLOOR_FRICTION;
       }
     }
@@ -113,9 +138,12 @@ function substep(world, h, events) {
     const f = makeFruit(a.t + 1, x, y);
     // 작은 크기에서 커지면서 주변을 밀어낸다 (한 번에 커지면 폭발하듯 튕긴다)
     f.r = FRUITS[a.t].r;
-    f.px = x - ((a.x - a.px) + (b.x - b.px)) / 2;
-    f.py = y - ((a.y - a.py) + (b.y - b.py)) / 2;
+    // 떨어지던 속도를 그대로 이어받으면 새 과일이 더미에 부딪혀 튄다. 조금만 남긴다.
+    f.px = x - ((a.x - a.px) + (b.x - b.px)) / 2 * MERGE_KEEP_V;
+    f.py = y - ((a.y - a.py) + (b.y - b.py)) / 2 * MERGE_KEEP_V;
     f.age = 1;   // 합쳐진 과일은 바로 게임 오버 판정 대상
+    f.calm = CALM_TIME;
+    f.calmDepth = 0;
     bodies.push(f);
     events.push({ type: 'merge', t: f.t, x, y, score: SCORE[f.t] });
   }
@@ -127,7 +155,8 @@ function stepWorld(world) {
   const h = STEP / SUBSTEPS;
   for (const b of world.bodies) {
     b.age += STEP;
-    if (b.r !== b.rTarget) b.r = Math.min(b.rTarget, b.r + (b.rTarget - FRUITS[Math.max(0, b.t - 1)].r) * 0.2);
+    if (b.calm > 0) b.calm = Math.max(0, b.calm - STEP);
+    if (b.r !== b.rTarget) b.r = Math.min(b.rTarget, b.r + (b.rTarget - FRUITS[Math.max(0, b.t - 1)].r) / GROW_FRAMES);
     b.m = b.r * b.r;
   }
   for (let s = 0; s < SUBSTEPS; s++) substep(world, h, events);
