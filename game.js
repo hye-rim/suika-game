@@ -583,7 +583,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse') { drop(); return; }
   // 손가락은 누른 채 좌우로 옮기다가 떼면 떨어뜨린다
   touching = true;
-  canvas.setPointerCapture(e.pointerId);
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
 });
 canvas.addEventListener('pointermove', (e) => {
   if (state !== 'play') return;
