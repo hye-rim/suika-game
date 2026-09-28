@@ -626,12 +626,19 @@ canvas.addEventListener('pointermove', (e) => {
   aimX = toLocalX(e);
   clampAim();
 });
-canvas.addEventListener('pointerup', () => {
+// 아이폰 등에서는 브라우저가 터치를 스크롤·제스처로 가져가면 pointerup 대신 pointercancel 을 보낸다.
+// 예전엔 취소되면 그냥 버려서, 손을 뗐는데도 발사가 안 돼 '탭이 안 먹는' 것처럼 느껴졌다.
+// → 취소돼도 뗀 것으로 치고, 혹시 포인터 이벤트가 빠져도 touchend 로 한 번 더 처리한다 (두 번 불려도 한 번만 발사).
+// 캔버스 위 터치는 스크롤·확대로 쓰지 말라고 브라우저에 알린다.
+function releaseTouch() {
   if (!touching) return;
   touching = false;
   drop();
-});
-canvas.addEventListener('pointercancel', () => { touching = false; });
+}
+canvas.addEventListener('pointerup', releaseTouch);
+canvas.addEventListener('pointercancel', releaseTouch);
+canvas.addEventListener('touchend', releaseTouch, { passive: true });
+canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
 
 addEventListener('keydown', (e) => {
   keys[e.code] = true;
