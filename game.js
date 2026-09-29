@@ -44,6 +44,12 @@ const CALM_TIME = 0.4;
 const CALM_DEPTH = 3;
 const SOFT = 0.95;
 const MERGE_KEEP_V = 0.3;
+// 튕김: 작은 과일일수록 통통, 큰 과일은 묵직하게. 부딪히는 속도가 BOUNCE_MIN 을 넘을 때만 튕겨서
+// 쌓여서 눌려 있는 과일은 떨리지 않는다. 한 번 튀고 나면 속도가 문턱 아래로 떨어져 금방 멈춘다.
+const BOUNCE_MIN = 0.5;              // 서브스텝당 px (= 300px/s)
+const bounceOf = (t) => 0.3 - t * 0.025;   // 체리 0.3 → 수박 0.05
+// 합쳐진 과일이 살짝 뛰어오르는 속도 (px/s). 역시 작을수록 높게.
+const mergeHopOf = (t) => 300 - t * 25;    // 딸기 275 → 수박 50
 
 let nextId = 1;
 function makeFruit(t, x, y) {
@@ -69,10 +75,13 @@ function substep(world, h, events) {
     b.px = b.x; b.py = b.y;
     b.x += vx;
     b.y += vy + g;
+    // 이번 서브스텝에 벽·바닥에 부딪혀 튕길 속도 (한 번 정해지면 이후 겹침 풀기에서도 유지)
+    b.vIn = vy + g; b.vxIn = vx;
+    b.bounceX = b.bounceY = 0;
     b.ang += vx / b.r;
   }
 
-  const merges = [];
+  const merges = [], hits = [];
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < bodies.length; i++) {
       const a = bodies[i];
@@ -92,6 +101,12 @@ function substep(world, h, events) {
           a.dead = b.dead = true;
           merges.push([a, b]);
           continue;
+        }
+
+        // 세게 부딪히면 기억해 뒀다가 겹침을 다 푼 뒤 튕겨낸다. 합쳐지는 중(calm)엔 튕기지 않는다.
+        if (pass === 0 && a.calm <= 0 && b.calm <= 0) {
+          const rn0 = ((b.x - b.px) - (a.x - a.px)) * nx + ((b.y - b.py) - (a.y - a.py)) * ny;
+          if (rn0 < -BOUNCE_MIN) hits.push({ a, b, nx, ny, sep: -rn0 * bounceOf(Math.min(a.t, b.t)) });
         }
 
         const overlap = (min - d) * 0.8;
@@ -118,14 +133,35 @@ function substep(world, h, events) {
     for (const b of bodies) {
       // 벽·바닥을 파고들었으면 되돌리고 그 축의 속도를 0으로. 이전 위치(px/py)를 남겨두면
       // 되돌린 거리가 그대로 반대 방향 속도가 되어, 위에서 눌린 과일이 바닥에서 튀어 오른다.
-      if (b.x - b.r < LEFT) { b.x = LEFT + b.r; b.px = b.x; }
-      if (b.x + b.r > RIGHT) { b.x = RIGHT - b.r; b.px = b.x; }
+      // 단, 이번 서브스텝에 세게 부딪힌 경우엔 들어온 속도의 일부를 반대로 돌려준다 (튕김).
+      if (b.x - b.r < LEFT) {
+        if (!b.bounceX && -b.vxIn > BOUNCE_MIN) b.bounceX = -b.vxIn * bounceOf(b.t);
+        b.x = LEFT + b.r; b.px = b.x - b.bounceX;
+      }
+      if (b.x + b.r > RIGHT) {
+        if (!b.bounceX && b.vxIn > BOUNCE_MIN) b.bounceX = -b.vxIn * bounceOf(b.t);
+        b.x = RIGHT - b.r; b.px = b.x - b.bounceX;
+      }
       if (b.y + b.r > FLOOR) {
+        if (!b.bounceY && b.vIn > BOUNCE_MIN) b.bounceY = -b.vIn * bounceOf(b.t);
+        // 위로 뜨던 중이면(합쳐져 뛰어오르며 커지는 과일) 그 속도는 살린다
+        const up = Math.min(0, b.y - b.py);
         b.y = FLOOR - b.r;
-        b.py = b.y;
+        b.py = b.y - (b.bounceY || up);
         b.px += (b.x - b.px) * FLOOR_FRICTION;
       }
     }
+  }
+
+  // 부딪힌 두 과일이 서로 멀어지는 속도가 최소 sep 이 되게 한다 (무거운 쪽은 조금만 움직인다)
+  for (const { a, b, nx, ny, sep } of hits) {
+    if (a.dead || b.dead) continue;
+    const rn = ((b.x - b.px) - (a.x - a.px)) * nx + ((b.y - b.py) - (a.y - a.py)) * ny;
+    const k = sep - rn;
+    if (k <= 0) continue;
+    const ma = b.m / (a.m + b.m), mb = a.m / (a.m + b.m);
+    a.px += nx * k * ma; a.py += ny * k * ma;
+    b.px -= nx * k * mb; b.py -= ny * k * mb;
   }
 
   for (const [a, b] of merges) {
@@ -138,9 +174,10 @@ function substep(world, h, events) {
     const f = makeFruit(a.t + 1, x, y);
     // 작은 크기에서 커지면서 주변을 밀어낸다 (한 번에 커지면 폭발하듯 튕긴다)
     f.r = FRUITS[a.t].r;
-    // 떨어지던 속도를 그대로 이어받으면 새 과일이 더미에 부딪혀 튄다. 조금만 남긴다.
+    // 떨어지던 속도를 그대로 이어받으면 새 과일이 더미에 부딪혀 튄다. 옆으로는 조금만 남긴다.
     f.px = x - ((a.x - a.px) + (b.x - b.px)) / 2 * MERGE_KEEP_V;
-    f.py = y - ((a.y - a.py) + (b.y - b.py)) / 2 * MERGE_KEEP_V;
+    // 위아래로는 떨어지던 속도 대신 살짝 뛰어오르게 한다
+    f.py = y + mergeHopOf(f.t) * h;
     f.age = 1;   // 합쳐진 과일은 바로 게임 오버 판정 대상
     f.calm = CALM_TIME;
     f.calmDepth = 0;
