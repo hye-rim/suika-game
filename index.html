@@ -83,6 +83,9 @@
     box-shadow:0 6px 0 var(--ink); cursor:pointer;
   }
   #overlay button:active { transform:translateY(4px); box-shadow:0 2px 0 var(--ink); }
+  /* 기기에 맞는 설명만: 폰(손가락)은 .touch, PC(마우스·키보드)는 .pc */
+  .pc { display:none; }
+  @media (pointer:fine) { .pc { display:inline; } .touch { display:none; } }
 </style>
 </head>
 <body>
@@ -104,9 +107,8 @@
         <p>같은 과일끼리 부딪히면 <b>한 단계 큰 과일</b>로 합쳐져요.<br>과일이 분홍 선을 넘치지 않게 쌓아 <b>🍉 수박</b>을 만들어 보세요!</p>
         <button id="startBtn">시작하기</button>
         <div class="help">
-          🖱️ 마우스로 위치 · 클릭으로 떨어뜨리기<br>
-          📱 드래그로 위치 · 손을 떼면 떨어뜨리기<br>
-          ⌨️ ← → 이동 · Space 떨어뜨리기
+          <span class="pc">🖱️ 마우스로 위치 · 클릭으로 떨어뜨리기<br>⌨️ ← → 이동 · Space 떨어뜨리기</span>
+          <span class="touch">👆 끌어서 위치 · 손을 떼면 떨어뜨리기</span>
         </div>
       </div>
     </div>
