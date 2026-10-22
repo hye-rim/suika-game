@@ -1,4 +1,6 @@
 'use strict';
+// 오락실 튜토리얼이 '진짜로 일어난 일'을 알아채는 신호 (arcade/public/tutorial.js 가 듣는다. 튜토리얼이 아니면 아무도 안 듣는다)
+const tutorialSignal = (type) => window.dispatchEvent(new CustomEvent('arcade:tutorial', { detail: { type } }));
 
 // 수박 게임: 화면·입력·소리. 과일·물리·합치기는 logic.js (LOGIC_SUIKA) 에 있다.
 const L = LOGIC_SUIKA;
@@ -107,6 +109,7 @@ function drop() {
   world.bodies.push(makeFruit(current, aimX + (Math.random() - 0.5) * 0.02, DROP_Y));
   dropped++;
   sfx.drop();
+  tutorialSignal('drop');
   current = next;
   next = randomFruit();
   cooldown = 0.5;
